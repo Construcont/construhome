@@ -896,6 +896,8 @@ function saveSyncConfig() {
 function initEmpFilter() {
   var sel = document.getElementById('empSelect');
   if (!sel) return;
+  // Remove opções anteriores (exceto o placeholder) para evitar duplicidade
+  while (sel.options.length > 1) sel.remove(1);
   ALL.forEach(function(name) {
     var opt = document.createElement('option');
     opt.value = name; opt.textContent = name;

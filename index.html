@@ -523,6 +523,21 @@ const EMP = {
 };
 const ALL = Object.keys(EMP);
 
+// Ordem fixa dos departamentos para exibição
+const DEPT_ORDER = ['Comercial','Legalização','Sucesso do Cliente','Contábil','Fiscal','DP','Gerência'];
+
+// Ordena funcionários por departamento (DEPT_ORDER) e depois alfabeticamente
+function sortEmps(names) {
+  return [...names].sort(function(a, b) {
+    const dA = EMP[a] ? EMP[a].dept : '';
+    const dB = EMP[b] ? EMP[b].dept : '';
+    const iA = DEPT_ORDER.indexOf(dA); const iB = DEPT_ORDER.indexOf(dB);
+    const dc = (iA < 0 ? 99 : iA) - (iB < 0 ? 99 : iB);
+    if (dc !== 0) return dc;
+    return a.localeCompare(b, 'pt-BR');
+  });
+}
+
 const GROUPS = [
   {name:'Administrativo',     c:'#7c3aed', ho:'Terça e Sexta',  m:['Ana Clara (Comercial)','Natieli (Legalização)','Mariela (Atendimento)']},
   {name:'Contábil + Estágio', c:'#2563eb', ho:'Quarta e Sexta', m:['Daniele','Cecilia','Julia','Giovanna']},
@@ -992,8 +1007,9 @@ function buildEmpCard(name, iso) {
 }
 
 function buildZone(names, iso) {
-  return names.length
-    ? names.map(n => buildEmpCard(n, iso)).join('')
+  const sorted = sortEmps(names);
+  return sorted.length
+    ? sorted.map(n => buildEmpCard(n, iso)).join('')
     : '<div class="zone-empty">Nenhum colaborador</div>';
 }
 

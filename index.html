@@ -645,15 +645,35 @@ function showToast(msg) {
 }
 
 // Sanitiza uma entrada de estado: garante que ho e pres são arrays
+// IMPORTANTE: Firebase descarta arrays vazios (ho:[] ou pres:[] somem do banco)
+// Regra: se uma zona tem dados, a outra ausente deve ser [] (não o fallback do ORIG)
 function sanitizeEntry(entry, fallback) {
-  if (!entry || typeof entry !== 'object') return clone(fallback);
+  if (!entry || typeof entry !== 'object') return clone(fallback) || {ho:[],pres:[],allPres:false};
   const allPres = !!entry.allPres;
-  return {
-    // Se allPres=true, ho é sempre [] (Firebase descarta arrays vazios, mas a lógica exige vazio)
-    ho:     allPres ? [] : (Array.isArray(entry.ho)   ? entry.ho   : (fallback ? [...fallback.ho]   : [])),
-    pres:   Array.isArray(entry.pres) ? entry.pres : (fallback ? [...fallback.pres] : []),
-    allPres: allPres
-  };
+  const hasHo   = Array.isArray(entry.ho)   && entry.ho.length   > 0;
+  const hasPres  = Array.isArray(entry.pres) && entry.pres.length > 0;
+
+  if (allPres) {
+    // Todos presenciais: ho sempre vazio, pres tem todos
+    return {
+      ho: [],
+      pres: hasPres ? entry.pres : (fallback ? [...fallback.pres] : []),
+      allPres: true
+    };
+  }
+
+  if (hasHo || hasPres) {
+    // Firebase tem dados em pelo menos uma zona:
+    // a zona ausente foi descartada por estar vazia → usar []
+    return {
+      ho:   hasHo  ? entry.ho   : [],
+      pres: hasPres ? entry.pres : [],
+      allPres: false
+    };
+  }
+
+  // Nenhuma zona tem dados no Firebase → usar padrão do ORIG
+  return clone(fallback) || {ho:[],pres:[],allPres:false};
 }
 
 function initState() {

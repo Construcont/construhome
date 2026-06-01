@@ -144,6 +144,8 @@ body.is-viewer .dc-foot{display:none}
 .reset-all-btn:hover{border-color:var(--primary-md);color:var(--primary-md);background:var(--primary-lt)}
 .publish-btn{padding:.38rem .9rem;border-radius:7px;border:1.5px solid #15803d;background:#15803d;cursor:pointer;font-size:.75rem;font-weight:700;color:#fff;transition:all .15s;display:flex;align-items:center;gap:.4rem}
 .publish-btn:hover{background:#166534;border-color:#166534}
+.save-sync-btn{padding:.38rem .9rem;border-radius:7px;border:1.5px solid var(--primary-md);background:var(--primary-md);cursor:pointer;font-size:.75rem;font-weight:700;color:#fff;transition:all .15s;display:flex;align-items:center;gap:.4rem}
+.save-sync-btn:hover{background:var(--primary);border-color:var(--primary)}
 .share-btn{padding:.38rem .9rem;border-radius:7px;border:1.5px solid var(--primary-md);background:var(--primary-md);cursor:pointer;font-size:.75rem;font-weight:700;color:#fff;transition:all .15s;display:flex;align-items:center;gap:.4rem}
 .share-btn:hover{background:var(--primary);border-color:var(--primary)}
 #toast{position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:.65rem 1.5rem;border-radius:30px;font-size:.85rem;font-weight:600;z-index:10000;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
@@ -385,6 +387,7 @@ footer{text-align:center;padding:1.5rem 1rem;font-size:.76rem;color:var(--gray-4
       <div class="sec-hdg"><span>Calendário Operacional</span></div>
       <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
         <button class="reset-all-btn admin-only" onclick="resetAll()">&#8634; Restaurar tudo ao original</button>
+        <button class="save-sync-btn admin-only" onclick="saveAndSync()">&#128190; Salvar Escala</button>
         <button class="publish-btn admin-only" onclick="downloadForPublish()">&#128640; Publicar escala</button>
       </div>
     </div>
@@ -685,7 +688,15 @@ function sanitizeState() {
 }
 
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
-function save()   { localStorage.setItem('cc-escala-v6', JSON.stringify(STATE)); syncPush(); }
+// Salva apenas no localStorage (sem sync automático)
+function save()   { localStorage.setItem('cc-escala-v6', JSON.stringify(STATE)); }
+// Sync manual: admin clica "Salvar Escala" quando terminar de editar
+async function saveAndSync() {
+  if (role !== 'admin') return;
+  save();
+  await syncPush();
+  showToast('✅ Escala salva e sincronizada para os funcionários!');
+}
 
 function toggleAllPresent(iso) {
   if (role !== 'admin') return;
@@ -847,9 +858,9 @@ async function bootSync() {
   }
 }
 
-// Auto-pull a cada 30s (todos os usuários)
+// Auto-pull a cada 30s apenas para funcionários (admin não recebe pull automático)
 setInterval(async function() {
-  if (!role || !_fbUrl) return;
+  if (!role || !_fbUrl || role === 'admin') return;
   var refreshed = await syncPull();
   if (refreshed) {
     document.querySelectorAll('.dc[data-iso]').forEach(function(el){ refreshDay(el.dataset.iso); });

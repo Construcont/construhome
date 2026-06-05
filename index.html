@@ -1043,7 +1043,9 @@ function buildEmpCard(name, iso) {
 }
 
 function buildZone(names, iso) {
-  const sorted = sortEmps(names);
+  // Filtra apenas funcionários cadastrados no EMP (remove removidos que ainda estejam no Firebase)
+  const valid = (names || []).filter(n => EMP[n]);
+  const sorted = sortEmps(valid);
   return sorted.length
     ? sorted.map(n => buildEmpCard(n, iso)).join('')
     : '<div class="zone-empty">Nenhum colaborador</div>';

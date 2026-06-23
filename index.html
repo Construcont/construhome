@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
@@ -1054,8 +1054,8 @@ function buildZone(names, iso) {
 function getS(iso) {
   const raw = STATE[iso] || ORIG[iso] || {};
   return {
-    ho:     Array.isArray(raw.ho)   ? raw.ho   : [],
-    pres:   Array.isArray(raw.pres) ? raw.pres : [],
+    ho:     (Array.isArray(raw.ho)   ? raw.ho   : []).filter(n => EMP[n]),
+    pres:   (Array.isArray(raw.pres) ? raw.pres : []).filter(n => EMP[n]),
     allPres: !!raw.allPres
   };
 }

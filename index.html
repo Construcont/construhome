@@ -517,7 +517,6 @@ function logout() {
 const EMP = {
   'Ana Clara': {dept:'Comercial',          role:'', c:'#7c3aed'},
   'Natieli':   {dept:'Legalização',        role:'', c:'#7c3aed'},
-  'Mariela':   {dept:'Sucesso do Cliente', role:'', c:'#7c3aed'},
   'Daniele':   {dept:'Contábil',           role:'', c:'#2563eb'},
   'Cecilia':   {dept:'Contábil',           role:'', c:'#2563eb'},
   'Julia':     {dept:'Contábil',           role:'', c:'#2563eb'},
@@ -545,7 +544,7 @@ function sortEmps(names) {
 }
 
 const GROUPS = [
-  {name:'Administrativo',     c:'#7c3aed', ho:'Terça e Sexta',  m:['Ana Clara (Comercial)','Natieli (Legalização)','Mariela (Atendimento)']},
+  {name:'Administrativo',     c:'#7c3aed', ho:'Terça e Sexta',  m:['Ana Clara (Comercial)','Natieli (Legalização)']},
   {name:'Contábil + Estágio', c:'#2563eb', ho:'Quarta e Sexta', m:['Daniele','Cecilia','Julia','Giovanna']},
   {name:'Fiscal',             c:'#d97706', ho:'Terça e Quinta', m:['Vitória','Matheus']},
   {name:'DP',                 c:'#0891b2', ho:'Quarta e Sexta', m:['Erica']},
@@ -553,10 +552,10 @@ const GROUPS = [
 ];
 
 const M  = {ho:[],                                                                               pr:[...ALL]};
-const T  = {ho:['Ana Clara','Natieli','Mariela','Vitória','Matheus'],                            pr:['Daniele','Cecilia','Julia','Giovanna','Erica','Luciana']};
-const QA = {ho:['Daniele','Cecilia','Julia','Giovanna','Erica'],                                 pr:['Ana Clara','Natieli','Mariela','Vitória','Matheus','Luciana']};
-const QI = {ho:['Vitória','Matheus','Luciana'],                                                  pr:['Ana Clara','Natieli','Mariela','Daniele','Cecilia','Julia','Giovanna','Erica']};
-const S  = {ho:['Ana Clara','Natieli','Mariela','Daniele','Cecilia','Julia','Giovanna','Erica'], pr:['Vitória','Matheus','Luciana']};
+const T  = {ho:['Ana Clara','Natieli','Vitória','Matheus'],                            pr:['Daniele','Cecilia','Julia','Giovanna','Erica','Luciana']};
+const QA = {ho:['Daniele','Cecilia','Julia','Giovanna','Erica'],                       pr:['Ana Clara','Natieli','Vitória','Matheus','Luciana']};
+const QI = {ho:['Vitória','Matheus','Luciana'],                                        pr:['Ana Clara','Natieli','Daniele','Cecilia','Julia','Giovanna','Erica']};
+const S  = {ho:['Ana Clara','Natieli','Daniele','Cecilia','Julia','Giovanna','Erica'], pr:['Vitória','Matheus','Luciana']};
 
 const WEEKS = [
   {lbl:'19–22/05', title:'Semana 19/05 a 22/05', days:[

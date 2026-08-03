@@ -388,12 +388,58 @@ footer{text-align:center;padding:1.5rem 1rem;font-size:.76rem;color:var(--gray-4
       <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
         <button class="reset-all-btn admin-only" onclick="resetAll()">&#8634; Restaurar tudo ao original</button>
         <button class="save-sync-btn admin-only" onclick="saveAndSync()">&#128190; Salvar Escala</button>
+        <button class="share-btn admin-only" onclick="openEmpModal()" style="background:#0891b2;border-color:#0891b2">&#128101; Equipe</button>
         <button class="publish-btn admin-only" onclick="downloadForPublish()">&#128640; Publicar escala</button>
       </div>
     </div>
     <div class="week-tabs" id="weekTabs"></div>
     <div id="weekContent"></div>
   </div>
+
+<!-- Modal Gerenciar Funcionários -->
+<div class="smodal hidden" id="empMgmtModal">
+  <div class="smodal-box" style="max-width:600px;max-height:90vh;overflow-y:auto">
+    <div class="smodal-title">&#128101; Gerenciar Funcionários</div>
+    <div class="smodal-sub">Adicione ou remova funcionários. Após as alterações, clique em <b>💾 Salvar Escala</b> para sincronizar com os funcionários.</div>
+    <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:.55rem">Equipe atual</div>
+    <div id="empMgmtList" style="margin-bottom:1.25rem;max-height:240px;overflow-y:auto"></div>
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin-bottom:1.1rem">
+    <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:.75rem">&#10133; Adicionar funcionário</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.65rem">
+      <div>
+        <label class="smodal-lbl">Nome completo</label>
+        <input id="newEmpName" class="smodal-input" type="text" placeholder="Ex: João Silva" style="margin-bottom:0" onkeydown="if(event.key==='Enter')addEmployee()"/>
+      </div>
+      <div>
+        <label class="smodal-lbl">Departamento</label>
+        <select id="newEmpDept" class="smodal-input" style="margin-bottom:0" onchange="updateNewEmpColor()">
+          <option value="Comercial">Comercial</option>
+          <option value="Legalização">Legalização</option>
+          <option value="Sucesso do Cliente">Sucesso do Cliente</option>
+          <option value="Contábil" selected>Contábil</option>
+          <option value="Fiscal">Fiscal</option>
+          <option value="DP">DP</option>
+          <option value="Gerência">Gerência</option>
+          <option value="Outro">Outro (digitar)</option>
+        </select>
+      </div>
+    </div>
+    <div id="newEmpDeptOther" style="display:none;margin-bottom:.65rem">
+      <label class="smodal-lbl">Nome do departamento</label>
+      <input id="newEmpDeptOtherInput" class="smodal-input" type="text" placeholder="Ex: Marketing" style="margin-bottom:0"/>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:.65rem;margin-bottom:1.1rem">
+      <div style="flex:1">
+        <label class="smodal-lbl">Cor do card</label>
+        <input type="color" id="newEmpColor" value="#2563eb" style="width:100%;height:40px;border-radius:8px;border:1.5px solid #e2e8f0;cursor:pointer;padding:3px 4px"/>
+      </div>
+      <button onclick="addEmployee()" style="padding:.55rem 1.4rem;border-radius:8px;border:none;background:#15803d;color:#fff;font-size:.85rem;font-weight:700;cursor:pointer;height:40px;white-space:nowrap;flex-shrink:0">&#10003; Adicionar</button>
+    </div>
+    <div class="smodal-foot">
+      <button class="smodal-cancel" onclick="closeEmpModal()">Fechar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal Sync -->
 <div class="smodal hidden" id="syncModal">
@@ -482,6 +528,7 @@ function bootApp() {
     document.getElementById('userBadge').className = 'user-badge badge-admin';
   }
 
+  loadEMP();
   initState();
   renderGroups();
   renderWeeks();
@@ -514,7 +561,7 @@ function logout() {
 // ══════════════════════════════════════
 // DATA
 // ══════════════════════════════════════
-const EMP = {
+let EMP = {
   'Ana Clara': {dept:'Comercial',          role:'', c:'#7c3aed'},
   'Natieli':   {dept:'Legalização',        role:'', c:'#7c3aed'},
   'Daniele':   {dept:'Contábil',           role:'', c:'#2563eb'},
@@ -526,7 +573,7 @@ const EMP = {
   'Erica':     {dept:'DP',                role:'', c:'#0891b2'},
   'Luciana':   {dept:'Gerência',           role:'', c:'#dc2626'},
 };
-const ALL = Object.keys(EMP);
+let ALL = Object.keys(EMP);
 
 // Ordem fixa dos departamentos para exibição
 const DEPT_ORDER = ['Comercial','Legalização','Sucesso do Cliente','Contábil','Fiscal','DP','Gerência'];
@@ -864,10 +911,11 @@ async function syncPush() {
   if (!_fbUrl || role !== 'admin') return;
   setSyncDot('ing');
   try {
+    var payload = Object.assign({}, STATE, {employees: EMP});
     var r = await fetch(fbUrl(), {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(STATE)
+      body: JSON.stringify(payload)
     });
     setSyncDot(r.ok ? 'ok' : 'err');
   } catch(e) { setSyncDot('err'); }
@@ -889,6 +937,16 @@ async function syncPull() {
       Object.keys(ORIG).forEach(function(iso) {
         if (data[iso] !== undefined) STATE[iso] = sanitizeEntry(data[iso], ORIG[iso]);
       });
+      // Aplica lista de funcionários do Firebase
+      // Viewer: sempre atualiza. Admin: só se não tiver dados locais (novo dispositivo)
+      if (data.employees && typeof data.employees === 'object' && Object.keys(data.employees).length > 0) {
+        var hadLocal = !!localStorage.getItem('cc-emp-v1');
+        if (role !== 'admin' || !hadLocal) {
+          EMP = data.employees;
+          ALL = Object.keys(EMP);
+          localStorage.setItem('cc-emp-v1', JSON.stringify(EMP));
+        }
+      }
       return true;
     }
   } catch(e) {}
@@ -914,9 +972,11 @@ setInterval(async function() {
   if (!role || !_fbUrl || role === 'admin') return;
   var refreshed = await syncPull();
   if (refreshed) {
+    ALL = Object.keys(EMP);
     document.querySelectorAll('.dc[data-iso]').forEach(function(el){ refreshDay(el.dataset.iso); });
     refreshDashboard();
     refreshFilter();
+    initEmpFilter();
     setSyncDot('ok');
   }
 }, 30000);
@@ -1362,6 +1422,121 @@ document.addEventListener('touchend',e=>{
   drop(e.changedTouches[0].clientX,e.changedTouches[0].clientY);
 });
 document.addEventListener('touchcancel',()=>{document.body.style.overflow=''; cancelDrag();});
+
+// ══════════════════════════════════════
+// GERENCIAR FUNCIONÁRIOS
+// ══════════════════════════════════════
+const DEPT_COLORS = {
+  'Comercial':'#7c3aed','Legalização':'#7c3aed','Sucesso do Cliente':'#7c3aed',
+  'Contábil':'#2563eb','Fiscal':'#d97706','DP':'#0891b2','Gerência':'#dc2626'
+};
+
+function loadEMP() {
+  var saved = localStorage.getItem('cc-emp-v1');
+  if (saved) {
+    try {
+      var parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+        EMP = parsed; ALL = Object.keys(EMP);
+      }
+    } catch(e) {}
+  }
+}
+
+function saveEMP() {
+  localStorage.setItem('cc-emp-v1', JSON.stringify(EMP));
+  ALL = Object.keys(EMP);
+}
+
+function openEmpModal() {
+  if (role !== 'admin') return;
+  renderEmpMgmtList();
+  document.getElementById('newEmpName').value = '';
+  document.getElementById('newEmpDept').value = 'Contábil';
+  document.getElementById('newEmpDeptOther').style.display = 'none';
+  updateNewEmpColor();
+  document.getElementById('empMgmtModal').classList.remove('hidden');
+}
+
+function closeEmpModal() {
+  document.getElementById('empMgmtModal').classList.add('hidden');
+}
+
+function renderEmpMgmtList() {
+  var sorted = sortEmps(Object.keys(EMP));
+  var html = sorted.map(function(name) {
+    var e = EMP[name];
+    var safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return '<div style="display:flex;align-items:center;gap:.6rem;padding:.42rem .6rem;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:.35rem">' +
+      '<div style="width:28px;height:28px;border-radius:50%;background:' + e.c + ';display:flex;align-items:center;justify-content:center;color:#fff;font-size:.6rem;font-weight:900;flex-shrink:0">' + ini(name) + '</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:.82rem;font-weight:700;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(name) + '</div>' +
+        '<div style="font-size:.7rem;color:#94a3b8">' + esc(e.dept) + '</div>' +
+      '</div>' +
+      '<button onclick="removeEmployee(\'' + safeName + '\')" style="padding:.2rem .6rem;border-radius:6px;border:1.5px solid #fca5a5;background:#fff;color:#dc2626;font-size:.72rem;font-weight:700;cursor:pointer;flex-shrink:0">&#10005; Remover</button>' +
+    '</div>';
+  }).join('');
+  document.getElementById('empMgmtList').innerHTML = html ||
+    '<div style="text-align:center;color:#94a3b8;font-size:.82rem;padding:.5rem;font-style:italic">Nenhum funcionário cadastrado</div>';
+}
+
+function updateNewEmpColor() {
+  var dept = document.getElementById('newEmpDept').value;
+  document.getElementById('newEmpDeptOther').style.display = dept === 'Outro' ? '' : 'none';
+  if (dept !== 'Outro') {
+    document.getElementById('newEmpColor').value = DEPT_COLORS[dept] || '#6b7280';
+  }
+}
+
+function addEmployee() {
+  var name = document.getElementById('newEmpName').value.trim();
+  var deptSel = document.getElementById('newEmpDept').value;
+  var dept = deptSel === 'Outro'
+    ? (document.getElementById('newEmpDeptOtherInput').value.trim())
+    : deptSel;
+  var color = document.getElementById('newEmpColor').value;
+  if (!name) { alert('Digite o nome do funcionário.'); return; }
+  if (!dept) { alert('Digite o nome do departamento.'); return; }
+  if (EMP[name]) { alert('Já existe um funcionário com esse nome.'); return; }
+
+  EMP[name] = {dept: dept, role: '', c: color};
+  ALL = Object.keys(EMP);
+
+  // Adiciona como Presencial em todos os dias (ORIG e STATE)
+  Object.keys(ORIG).forEach(function(iso) {
+    if (!ORIG[iso].pres.includes(name)) ORIG[iso].pres.push(name);
+    if (!STATE[iso]) STATE[iso] = clone(ORIG[iso]);
+    if (!STATE[iso].pres.includes(name) && !STATE[iso].ho.includes(name)) {
+      STATE[iso].pres.push(name);
+    }
+  });
+
+  saveEMP();
+  save();
+  refreshAfterEmpChange();
+  document.getElementById('newEmpName').value = '';
+  showToast('✅ ' + name + ' adicionado! Arraste para ajustar a escala e depois clique em Salvar Escala.');
+}
+
+function removeEmployee(name) {
+  if (!EMP[name]) return;
+  if (!confirm('Remover ' + name + ' da escala?\n\nEle(a) não aparecerá mais nos cards.')) return;
+  delete EMP[name];
+  ALL = Object.keys(EMP);
+  saveEMP();
+  save();
+  refreshAfterEmpChange();
+  showToast('✅ ' + name + ' removido. Clique em Salvar Escala para sincronizar.');
+}
+
+function refreshAfterEmpChange() {
+  renderGroups();
+  renderWeeks();
+  initEmpFilter();
+  refreshDashboard();
+  var modal = document.getElementById('empMgmtModal');
+  if (modal && !modal.classList.contains('hidden')) renderEmpMgmtList();
+}
 </script>
 </body>
 </html>

@@ -428,12 +428,22 @@ footer{text-align:center;padding:1.5rem 1rem;font-size:.76rem;color:var(--gray-4
       <label class="smodal-lbl">Nome do departamento</label>
       <input id="newEmpDeptOtherInput" class="smodal-input" type="text" placeholder="Ex: Marketing" style="margin-bottom:0"/>
     </div>
-    <div style="display:flex;align-items:flex-end;gap:.65rem;margin-bottom:1.1rem">
-      <div style="flex:1">
+    <div style="margin-bottom:.75rem">
+      <label class="smodal-lbl">Modalidade por dia da semana <span style="color:#94a3b8;font-weight:400;text-transform:none;letter-spacing:0">(clique para alternar HO / Presencial)</span></label>
+      <div id="newEmpDays" style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.3rem"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.75rem">
+      <div>
         <label class="smodal-lbl">Cor do card</label>
         <input type="color" id="newEmpColor" value="#2563eb" style="width:100%;height:40px;border-radius:8px;border:1.5px solid #e2e8f0;cursor:pointer;padding:3px 4px"/>
       </div>
-      <button onclick="addEmployee()" style="padding:.55rem 1.4rem;border-radius:8px;border:none;background:#15803d;color:#fff;font-size:.85rem;font-weight:700;cursor:pointer;height:40px;white-space:nowrap;flex-shrink:0">&#10003; Adicionar</button>
+      <div>
+        <label class="smodal-lbl">Início na escala <span style="color:#94a3b8;font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+        <input type="date" id="newEmpStartDate" class="smodal-input" style="margin-bottom:0" title="Deixe vazio para aparecer desde a primeira semana disponível"/>
+      </div>
+    </div>
+    <div style="margin-bottom:1.1rem">
+      <button onclick="addEmployee()" style="width:100%;padding:.65rem;border-radius:8px;border:none;background:#15803d;color:#fff;font-size:.9rem;font-weight:700;cursor:pointer">&#10003; Adicionar Funcionário</button>
     </div>
     <div class="smodal-foot">
       <button class="smodal-cancel" onclick="closeEmpModal()">Fechar</button>
@@ -1169,7 +1179,8 @@ function buildEmpCard(name, iso) {
 
 function buildZone(names, iso) {
   // Filtra apenas funcionários cadastrados no EMP (remove removidos que ainda estejam no Firebase)
-  const valid = (names || []).filter(n => EMP[n]);
+  // e respeita data de início de cada funcionário
+  const valid = (names || []).filter(n => EMP[n] && (!EMP[n].startDate || iso >= EMP[n].startDate));
   const sorted = sortEmps(valid);
   return sorted.length
     ? sorted.map(n => buildEmpCard(n, iso)).join('')
@@ -1178,9 +1189,10 @@ function buildZone(names, iso) {
 
 function getS(iso) {
   const raw = STATE[iso] || ORIG[iso] || {};
+  const active = n => EMP[n] && (!EMP[n].startDate || iso >= EMP[n].startDate);
   return {
-    ho:     (Array.isArray(raw.ho)   ? raw.ho   : []).filter(n => EMP[n]),
-    pres:   (Array.isArray(raw.pres) ? raw.pres : []).filter(n => EMP[n]),
+    ho:     (Array.isArray(raw.ho)   ? raw.ho   : []).filter(active),
+    pres:   (Array.isArray(raw.pres) ? raw.pres : []).filter(active),
     allPres: !!raw.allPres
   };
 }
@@ -1483,13 +1495,43 @@ function saveEMP() {
   ALL = Object.keys(EMP);
 }
 
+var newEmpDaySchedule = {Segunda:'pres',Terça:'pres',Quarta:'pres',Quinta:'pres',Sexta:'pres'};
+
+function initEmpDays() {
+  newEmpDaySchedule = {Segunda:'pres',Terça:'pres',Quarta:'pres',Quinta:'pres',Sexta:'pres'};
+  renderEmpDays();
+}
+
+function toggleEmpDay(wd) {
+  newEmpDaySchedule[wd] = newEmpDaySchedule[wd] === 'ho' ? 'pres' : 'ho';
+  renderEmpDays();
+}
+
+function renderEmpDays() {
+  var days = ['Segunda','Terça','Quarta','Quinta','Sexta'];
+  var html = days.map(function(wd) {
+    var isHO = newEmpDaySchedule[wd] === 'ho';
+    return '<button type="button" onclick="toggleEmpDay(\'' + wd + '\')" ' +
+      'style="padding:.32rem .8rem;border-radius:8px;border:1.5px solid ' + (isHO ? '#3b82f6' : '#22c55e') + ';' +
+      'background:' + (isHO ? '#eff6ff' : '#f0fdf4') + ';' +
+      'color:' + (isHO ? '#1d4ed8' : '#15803d') + ';' +
+      'font-size:.78rem;font-weight:700;cursor:pointer;transition:all .15s">' +
+      (isHO ? '🏠' : '🟢') + ' ' + wd +
+      '<span style="opacity:.6;font-size:.7rem;margin-left:.25rem">· ' + (isHO ? 'HO' : 'Pres') + '</span>' +
+    '</button>';
+  }).join('');
+  document.getElementById('newEmpDays').innerHTML = html;
+}
+
 function openEmpModal() {
   if (role !== 'admin') return;
   renderEmpMgmtList();
   document.getElementById('newEmpName').value = '';
   document.getElementById('newEmpDept').value = 'Contábil';
+  document.getElementById('newEmpStartDate').value = '';
   document.getElementById('newEmpDeptOther').style.display = 'none';
   updateNewEmpColor();
+  initEmpDays();
   document.getElementById('empMgmtModal').classList.remove('hidden');
 }
 
@@ -1502,11 +1544,30 @@ function renderEmpMgmtList() {
   var html = sorted.map(function(name) {
     var e = EMP[name];
     var safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    return '<div style="display:flex;align-items:center;gap:.6rem;padding:.42rem .6rem;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:.35rem">' +
+    var sub = esc(e.dept);
+    if (e.startDate) sub += ' &nbsp;·&nbsp; <span style="color:#7c3aed">&#128197; desde ' + e.startDate.split('-').reverse().join('/') + '</span>';
+    // Detecta padrão de dias a partir do STATE/ORIG
+    var hoWds = [], presWds = [];
+    ['Segunda','Terça','Quarta','Quinta','Sexta'].forEach(function(wd) {
+      // Encontra um dia desta semana no ORIG
+      var found = null;
+      WEEKS.forEach(function(w){ w.days.forEach(function(d){ if(d.wd===wd && !found) found=d; }); });
+      if (!found) return;
+      var raw = STATE[found.iso] || ORIG[found.iso] || {};
+      var inHO = (raw.ho||[]).includes(name);
+      var inPres = (raw.pres||[]).includes(name);
+      if (inHO) hoWds.push(wd.slice(0,3));
+      else if (inPres) presWds.push(wd.slice(0,3));
+    });
+    var daysHtml = '';
+    if (hoWds.length)   daysHtml += '<span style="color:#1d4ed8;font-size:.68rem;font-weight:600">🏠 ' + hoWds.join(', ') + '</span> ';
+    if (presWds.length) daysHtml += '<span style="color:#15803d;font-size:.68rem;font-weight:600">🟢 ' + presWds.join(', ') + '</span>';
+    return '<div style="display:flex;align-items:center;gap:.6rem;padding:.45rem .65rem;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:.35rem">' +
       '<div style="width:28px;height:28px;border-radius:50%;background:' + e.c + ';display:flex;align-items:center;justify-content:center;color:#fff;font-size:.6rem;font-weight:900;flex-shrink:0">' + ini(name) + '</div>' +
       '<div style="flex:1;min-width:0">' +
-        '<div style="font-size:.82rem;font-weight:700;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(name) + '</div>' +
-        '<div style="font-size:.7rem;color:#94a3b8">' + esc(e.dept) + '</div>' +
+        '<div style="font-size:.82rem;font-weight:700;color:#0f172a">' + esc(name) + '</div>' +
+        '<div style="font-size:.7rem;color:#94a3b8;margin-bottom:.15rem">' + sub + '</div>' +
+        (daysHtml ? '<div>' + daysHtml + '</div>' : '') +
       '</div>' +
       '<button onclick="removeEmployee(\'' + safeName + '\')" style="padding:.2rem .6rem;border-radius:6px;border:1.5px solid #fca5a5;background:#fff;color:#dc2626;font-size:.72rem;font-weight:700;cursor:pointer;flex-shrink:0">&#10005; Remover</button>' +
     '</div>';
@@ -1530,27 +1591,48 @@ function addEmployee() {
     ? (document.getElementById('newEmpDeptOtherInput').value.trim())
     : deptSel;
   var color = document.getElementById('newEmpColor').value;
+  var startDate = document.getElementById('newEmpStartDate').value; // 'AAAA-MM-DD' ou ''
   if (!name) { alert('Digite o nome do funcionário.'); return; }
   if (!dept) { alert('Digite o nome do departamento.'); return; }
   if (EMP[name]) { alert('Já existe um funcionário com esse nome.'); return; }
 
-  EMP[name] = {dept: dept, role: '', c: color};
+  var empEntry = {dept: dept, role: '', c: color};
+  if (startDate) empEntry.startDate = startDate;
+  EMP[name] = empEntry;
   ALL = Object.keys(EMP);
 
-  // Adiciona como Presencial em todos os dias (ORIG e STATE)
-  Object.keys(ORIG).forEach(function(iso) {
-    if (!ORIG[iso].pres.includes(name)) ORIG[iso].pres.push(name);
-    if (!STATE[iso]) STATE[iso] = clone(ORIG[iso]);
-    if (!STATE[iso].pres.includes(name) && !STATE[iso].ho.includes(name)) {
-      STATE[iso].pres.push(name);
-    }
+  // Adiciona ao ORIG e STATE respeitando a escala de dias e a data de início
+  WEEKS.forEach(function(w) {
+    w.days.forEach(function(d) {
+      if (startDate && d.iso < startDate) return; // ainda não começou
+      var zone = newEmpDaySchedule[d.wd] || 'pres';
+      // Atualiza ORIG
+      if (zone === 'ho') {
+        if (!ORIG[d.iso].ho.includes(name)) ORIG[d.iso].ho.push(name);
+        ORIG[d.iso].pres = ORIG[d.iso].pres.filter(function(n){ return n !== name; });
+      } else {
+        if (!ORIG[d.iso].pres.includes(name)) ORIG[d.iso].pres.push(name);
+        ORIG[d.iso].ho = ORIG[d.iso].ho.filter(function(n){ return n !== name; });
+      }
+      // Atualiza STATE
+      if (!STATE[d.iso]) STATE[d.iso] = clone(ORIG[d.iso]);
+      var s = STATE[d.iso];
+      s.ho   = (s.ho   || []).filter(function(n){ return n !== name; });
+      s.pres = (s.pres || []).filter(function(n){ return n !== name; });
+      if (zone === 'ho') s.ho.push(name);
+      else s.pres.push(name);
+    });
   });
 
   saveEMP();
   save();
   refreshAfterEmpChange();
   document.getElementById('newEmpName').value = '';
-  showToast('✅ ' + name + ' adicionado! Arraste para ajustar a escala e depois clique em Salvar Escala.');
+  document.getElementById('newEmpStartDate').value = '';
+  initEmpDays();
+  var msg = '✅ ' + name + ' adicionado';
+  if (startDate) msg += ' (a partir de ' + startDate.split('-').reverse().join('/') + ')';
+  showToast(msg + '! Clique em Salvar Escala para sincronizar.');
 }
 
 function removeEmployee(name) {

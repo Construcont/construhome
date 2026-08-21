@@ -1495,7 +1495,9 @@ function saveEMP() {
   ALL = Object.keys(EMP);
 }
 
-var newEmpDaySchedule = {Segunda:'pres',Terça:'pres',Quarta:'pres',Quinta:'pres',Sexta:'pres'};
+var newEmpDaySchedule  = {Segunda:'pres',Terça:'pres',Quarta:'pres',Quinta:'pres',Sexta:'pres'};
+var editingEmp         = null;
+var editEmpDaySchedule = {};
 
 function initEmpDays() {
   newEmpDaySchedule = {Segunda:'pres',Terça:'pres',Quarta:'pres',Quinta:'pres',Sexta:'pres'};
@@ -1536,7 +1538,37 @@ function openEmpModal() {
 }
 
 function closeEmpModal() {
+  editingEmp = null; editEmpDaySchedule = {};
   document.getElementById('empMgmtModal').classList.add('hidden');
+}
+
+function _empDayPattern(name) {
+  var hoWds = [], presWds = [];
+  ['Segunda','Terça','Quarta','Quinta','Sexta'].forEach(function(wd) {
+    var found = null;
+    WEEKS.forEach(function(w){ w.days.forEach(function(d){ if(d.wd===wd && !found) found=d; }); });
+    if (!found) return;
+    var raw = STATE[found.iso] || ORIG[found.iso] || {};
+    if ((raw.ho||[]).includes(name)) hoWds.push(wd.slice(0,3));
+    else if ((raw.pres||[]).includes(name)) presWds.push(wd.slice(0,3));
+  });
+  var s = '';
+  if (hoWds.length)   s += '<span style="color:#1d4ed8;font-size:.68rem;font-weight:600">🏠 ' + hoWds.join(', ') + '</span> ';
+  if (presWds.length) s += '<span style="color:#15803d;font-size:.68rem;font-weight:600">🟢 ' + presWds.join(', ') + '</span>';
+  return s;
+}
+
+function _dayBtns(schedule, onclickFn) {
+  return ['Segunda','Terça','Quarta','Quinta','Sexta'].map(function(wd) {
+    var isHO = schedule[wd] === 'ho';
+    return '<button type="button" onclick="' + onclickFn + '(\'' + wd + '\')" ' +
+      'style="padding:.28rem .62rem;border-radius:7px;border:1.5px solid ' + (isHO?'#3b82f6':'#22c55e') + ';' +
+      'background:' + (isHO?'#eff6ff':'#f0fdf4') + ';color:' + (isHO?'#1d4ed8':'#15803d') + ';' +
+      'font-size:.75rem;font-weight:700;cursor:pointer">' +
+      (isHO?'🏠':'🟢') + ' ' + wd +
+      '<span style="opacity:.6;font-size:.68rem;margin-left:.2rem">· ' + (isHO?'HO':'Pres') + '</span>' +
+    '</button>';
+  }).join('');
 }
 
 function renderEmpMgmtList() {
@@ -1546,34 +1578,88 @@ function renderEmpMgmtList() {
     var safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     var sub = esc(e.dept);
     if (e.startDate) sub += ' &nbsp;·&nbsp; <span style="color:#7c3aed">&#128197; desde ' + e.startDate.split('-').reverse().join('/') + '</span>';
-    // Detecta padrão de dias a partir do STATE/ORIG
-    var hoWds = [], presWds = [];
-    ['Segunda','Terça','Quarta','Quinta','Sexta'].forEach(function(wd) {
-      // Encontra um dia desta semana no ORIG
-      var found = null;
-      WEEKS.forEach(function(w){ w.days.forEach(function(d){ if(d.wd===wd && !found) found=d; }); });
-      if (!found) return;
-      var raw = STATE[found.iso] || ORIG[found.iso] || {};
-      var inHO = (raw.ho||[]).includes(name);
-      var inPres = (raw.pres||[]).includes(name);
-      if (inHO) hoWds.push(wd.slice(0,3));
-      else if (inPres) presWds.push(wd.slice(0,3));
-    });
-    var daysHtml = '';
-    if (hoWds.length)   daysHtml += '<span style="color:#1d4ed8;font-size:.68rem;font-weight:600">🏠 ' + hoWds.join(', ') + '</span> ';
-    if (presWds.length) daysHtml += '<span style="color:#15803d;font-size:.68rem;font-weight:600">🟢 ' + presWds.join(', ') + '</span>';
-    return '<div style="display:flex;align-items:center;gap:.6rem;padding:.45rem .65rem;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:.35rem">' +
-      '<div style="width:28px;height:28px;border-radius:50%;background:' + e.c + ';display:flex;align-items:center;justify-content:center;color:#fff;font-size:.6rem;font-weight:900;flex-shrink:0">' + ini(name) + '</div>' +
-      '<div style="flex:1;min-width:0">' +
-        '<div style="font-size:.82rem;font-weight:700;color:#0f172a">' + esc(name) + '</div>' +
-        '<div style="font-size:.7rem;color:#94a3b8;margin-bottom:.15rem">' + sub + '</div>' +
-        (daysHtml ? '<div>' + daysHtml + '</div>' : '') +
+    var isEditing = editingEmp === name;
+    var daysHtml  = isEditing ? '' : _empDayPattern(name);
+    var rBorder   = isEditing ? '8px 8px 0 0' : '8px';
+    var rBordCol  = isEditing ? '#7dd3fc' : '#e2e8f0';
+    var editPanel = '';
+    if (isEditing) {
+      editPanel =
+        '<div style="background:#f0f9ff;border-radius:0 0 8px 8px;border:1px solid #7dd3fc;border-top:none;padding:.6rem .75rem">' +
+          '<div style="font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#0369a1;margin-bottom:.42rem">Clique para alternar HO / Presencial</div>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.55rem">' + _dayBtns(editEmpDaySchedule,'toggleEditDay') + '</div>' +
+          '<div style="display:flex;gap:.5rem">' +
+            '<button onclick="saveEmpDays(\'' + safeName + '\')" style="padding:.3rem .95rem;border-radius:7px;border:none;background:#15803d;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">&#10003; Salvar</button>' +
+            '<button onclick="cancelEditEmp()" style="padding:.3rem .75rem;border-radius:7px;border:1.5px solid #e2e8f0;background:#fff;color:#64748b;font-size:.78rem;font-weight:700;cursor:pointer">Cancelar</button>' +
+          '</div>' +
+        '</div>';
+    }
+    return '<div style="margin-bottom:.4rem">' +
+      '<div style="display:flex;align-items:center;gap:.55rem;padding:.42rem .65rem;background:#f8fafc;border-radius:' + rBorder + ';border:1px solid ' + rBordCol + (isEditing?';border-bottom:none':'') + '">' +
+        '<div style="width:28px;height:28px;border-radius:50%;background:' + e.c + ';display:flex;align-items:center;justify-content:center;color:#fff;font-size:.6rem;font-weight:900;flex-shrink:0">' + ini(name) + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:.82rem;font-weight:700;color:#0f172a">' + esc(name) + '</div>' +
+          '<div style="font-size:.7rem;color:#94a3b8' + (daysHtml?';margin-bottom:.12rem':'') + '">' + sub + '</div>' +
+          (daysHtml ? '<div>' + daysHtml + '</div>' : '') +
+        '</div>' +
+        (isEditing
+          ? ''
+          : '<button onclick="editEmpDays(\'' + safeName + '\')" style="padding:.2rem .55rem;border-radius:6px;border:1.5px solid #7dd3fc;background:#f0f9ff;color:#0369a1;font-size:.7rem;font-weight:700;cursor:pointer;flex-shrink:0">✏️ Editar</button>') +
+        '<button onclick="removeEmployee(\'' + safeName + '\')" style="padding:.2rem .55rem;border-radius:6px;border:1.5px solid #fca5a5;background:#fff;color:#dc2626;font-size:.7rem;font-weight:700;cursor:pointer;flex-shrink:0">&#10005;</button>' +
       '</div>' +
-      '<button onclick="removeEmployee(\'' + safeName + '\')" style="padding:.2rem .6rem;border-radius:6px;border:1.5px solid #fca5a5;background:#fff;color:#dc2626;font-size:.72rem;font-weight:700;cursor:pointer;flex-shrink:0">&#10005; Remover</button>' +
+      editPanel +
     '</div>';
   }).join('');
   document.getElementById('empMgmtList').innerHTML = html ||
     '<div style="text-align:center;color:#94a3b8;font-size:.82rem;padding:.5rem;font-style:italic">Nenhum funcionário cadastrado</div>';
+}
+
+function editEmpDays(name) {
+  editingEmp = name;
+  editEmpDaySchedule = {};
+  ['Segunda','Terça','Quarta','Quinta','Sexta'].forEach(function(wd) {
+    var found = null;
+    WEEKS.forEach(function(w){ w.days.forEach(function(d){ if(d.wd===wd && !found) found=d; }); });
+    if (!found) { editEmpDaySchedule[wd] = 'pres'; return; }
+    var raw = STATE[found.iso] || ORIG[found.iso] || {};
+    editEmpDaySchedule[wd] = (raw.ho||[]).includes(name) ? 'ho' : 'pres';
+  });
+  renderEmpMgmtList();
+}
+
+function toggleEditDay(wd) {
+  editEmpDaySchedule[wd] = editEmpDaySchedule[wd] === 'ho' ? 'pres' : 'ho';
+  renderEmpMgmtList();
+}
+
+function cancelEditEmp() {
+  editingEmp = null; editEmpDaySchedule = {};
+  renderEmpMgmtList();
+}
+
+function saveEmpDays(name) {
+  WEEKS.forEach(function(w) {
+    w.days.forEach(function(d) {
+      // Respeita data de início: não move funcionário antes de começar
+      if (EMP[name] && EMP[name].startDate && d.iso < EMP[name].startDate) return;
+      var zone = editEmpDaySchedule[d.wd] || 'pres';
+      // Atualiza ORIG
+      ORIG[d.iso].ho   = (ORIG[d.iso].ho   || []).filter(function(n){ return n !== name; });
+      ORIG[d.iso].pres = (ORIG[d.iso].pres || []).filter(function(n){ return n !== name; });
+      if (zone === 'ho') ORIG[d.iso].ho.push(name);
+      else ORIG[d.iso].pres.push(name);
+      // Atualiza STATE
+      if (!STATE[d.iso]) STATE[d.iso] = clone(ORIG[d.iso]);
+      STATE[d.iso].ho   = (STATE[d.iso].ho   || []).filter(function(n){ return n !== name; });
+      STATE[d.iso].pres = (STATE[d.iso].pres || []).filter(function(n){ return n !== name; });
+      if (zone === 'ho') STATE[d.iso].ho.push(name);
+      else STATE[d.iso].pres.push(name);
+    });
+  });
+  save();
+  editingEmp = null; editEmpDaySchedule = {};
+  refreshAfterEmpChange();
+  showToast('✅ Escala de ' + name + ' atualizada! Clique em Salvar Escala para sincronizar.');
 }
 
 function updateNewEmpColor() {
